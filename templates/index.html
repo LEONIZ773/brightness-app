@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LUMOS — Коррекция яркости</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+{% if captcha_enabled %}
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
+{% endif %}
+</head>
+<body>
+
+<header>
+  <div class="logo">LUMOS<span>image brightness control</span></div>
+  <div class="header-tag">PIL · MATPLOTLIB · FLASK</div>
+</header>
+
+<main>
+  <!-- ФОРМА -->
+  <aside class="sidebar">
+
+    <fieldset>
+      <legend>входное изображение</legend>
+      <div class="dropzone" id="dropzone">
+        <input type="file" id="fileInput" accept="image/*">
+        <span class="dropzone-icon">⬡</span>
+        <p>Перетащите изображение<br>или нажмите для выбора</p>
+        <p class="file-name" id="fileName"></p>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>уровень яркости</legend>
+      <div class="control-row">
+        <div class="brightness-display">
+          <div class="brightness-value" id="brightnessDisplay">1.00</div>
+          <div class="brightness-unit">FACTOR</div>
+        </div>
+        <input type="range" id="brightnessSlider" min="0" max="4" step="0.05" value="1.0">
+        <div class="range-labels"><span>0.00</span><span>1.00</span><span>2.00</span><span>3.00</span><span>4.00</span></div>
+        <div class="num-row">
+          <label for="brightnessInput">точное значение:</label>
+          <input type="number" id="brightnessInput" min="0" max="4" step="0.05" value="1.0">
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>пресеты</legend>
+      <div class="presets">
+        <button type="button" class="preset-btn" data-val="0.2">−80%</button>
+        <button type="button" class="preset-btn" data-val="0.5">−50%</button>
+        <button type="button" class="preset-btn" data-val="0.75">−25%</button>
+        <button type="button" class="preset-btn active" data-val="1.0">норма</button>
+        <button type="button" class="preset-btn" data-val="1.25">+25%</button>
+        <button type="button" class="preset-btn" data-val="1.5">+50%</button>
+        <button type="button" class="preset-btn" data-val="2.0">×2</button>
+        <button type="button" class="preset-btn" data-val="3.0">×3</button>
+      </div>
+    </fieldset>
+
+    {% if captcha_enabled %}
+    <fieldset>
+      <legend>проверка</legend>
+      <div class="captcha-box">
+        <div class="g-recaptcha" data-sitekey="{{ site_key }}" data-theme="dark"></div>
+      </div>
+    </fieldset>
+    {% endif %}
+
+    <div id="errorBar" class="error-bar"></div>
+
+    <button type="button" class="submit-btn" id="submitBtn" disabled>
+      <span class="btn-text">ПРИМЕНИТЬ</span>
+      <span class="spinner"></span>
+    </button>
+
+    <fieldset id="statsSection" style="display:none">
+      <legend>статистика пикселей</legend>
+      <div class="stats-title">ОРИГИНАЛ</div>
+      <div class="stats-grid" id="origStats"></div>
+      <div class="stats-title" style="margin-top:10px">РЕЗУЛЬТАТ</div>
+      <div class="stats-grid" id="resStats"></div>
+    </fieldset>
+
+  </aside>
+
+  <!-- РЕЗУЛЬТАТЫ -->
+  <div class="content" id="content">
+
+    <div class="empty-state" id="emptyState">
+      <div class="big">◈</div>
+      <p>загрузите изображение для начала работы</p>
+    </div>
+
+    <div id="results" style="display:none">
+      <table class="results">
+        <tr>
+          <th>ОРИГИНАЛ <span class="tag" id="origDims">—</span></th>
+          <th>РЕЗУЛЬТАТ <span class="tag" id="resFactor">—</span></th>
+        </tr>
+        <tr>
+          <td><img id="origImage" src="" alt="Оригинал"></td>
+          <td>
+            <img id="resImage" src="" alt="Результат">
+            <a class="dl-link" id="downloadLink" href="#" download="brightness_result.png">скачать результат</a>
+          </td>
+        </tr>
+        <tr>
+          <th>ГИСТОГРАММА — ОРИГИНАЛ <span class="tag">RGB</span></th>
+          <th>ГИСТОГРАММА — РЕЗУЛЬТАТ <span class="tag">RGB</span></th>
+        </tr>
+        <tr>
+          <td><img id="origHist" src="" alt="Гистограмма оригинала"></td>
+          <td><img id="resHist" src="" alt="Гистограмма результата"></td>
+        </tr>
+      </table>
+    </div>
+
+  </div>
+</main>
+
+<script>
+const CAPTCHA_ON = {{ 'true' if captcha_enabled else 'false' }};
+
+const fileInput = document.getElementById('fileInput');
+const dropzone = document.getElementById('dropzone');
+const fileName = document.getElementById('fileName');
+const slider = document.getElementById('brightnessSlider');
+const numInput = document.getElementById('brightnessInput');
+const display = document.getElementById('brightnessDisplay');
+const submitBtn = document.getElementById('submitBtn');
+const errorBar = document.getElementById('errorBar');
+const results = document.getElementById('results');
+const emptyState = document.getElementById('emptyState');
+const statsSection = document.getElementById('statsSection');
+
+let selectedFile = null;
+
+function showError(msg) {
+  errorBar.textContent = '⚠ ' + msg;
+  errorBar.style.display = 'block';
+}
+
+// ── Выбор файла
+fileInput.addEventListener('change', (e) => {
+  const f = e.target.files[0];
+  if (f) { selectedFile = f; fileName.textContent = f.name; submitBtn.disabled = false; }
+});
+
+// Drag & drop
+dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault(); dropzone.classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) {
+    selectedFile = f; fileName.textContent = f.name; submitBtn.disabled = false;
+    fileInput.files = e.dataTransfer.files;
+  }
+});
+
+// ── Синхронизация элементов яркости
+function setBrightness(val) {
+  val = Math.max(0, Math.min(4, parseFloat(val) || 0));
+  slider.value = val;
+  numInput.value = val.toFixed(2);
+  display.textContent = val.toFixed(2);
+  document.querySelectorAll('.preset-btn').forEach(b => {
+    b.classList.toggle('active', parseFloat(b.dataset.val) === val);
+  });
+}
+
+slider.addEventListener('input', () => setBrightness(slider.value));
+numInput.addEventListener('change', () => setBrightness(numInput.value));
+
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => setBrightness(btn.dataset.val));
+});
+
+// ── Статистика
+function renderStats(data, containerId, compare = null) {
+  const el = document.getElementById(containerId);
+  const keys = { mean: 'среднее', min: 'минимум', max: 'максимум', std: 'отклонение' };
+  el.innerHTML = Object.entries(keys).map(([k, label]) => {
+    const val = data[k];
+    const changed = compare && Math.abs(val - compare[k]) > 0.5;
+    return `<div class="stat-cell">
+      <div class="stat-key">${label}</div>
+      <div class="stat-val ${changed ? 'changed' : ''}">${val}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Отправка на сервер
+submitBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  errorBar.style.display = 'none';
+
+  let captchaToken = '';
+  if (CAPTCHA_ON) {
+    captchaToken = grecaptcha.getResponse();
+    if (!captchaToken) { showError('Подтвердите, что вы не робот'); return; }
+  }
+
+  submitBtn.classList.add('loading');
+  submitBtn.disabled = true;
+
+  const fd = new FormData();
+  fd.append('image', selectedFile);
+  fd.append('brightness', parseFloat(numInput.value).toFixed(4));
+  fd.append('g-recaptcha-response', captchaToken);
+
+  try {
+    const resp = await fetch('/process', { method: 'POST', body: fd });
+    const data = await resp.json();
+
+    if (!resp.ok || data.error) {
+      throw new Error(data.error || 'Ошибка сервера');
+    }
+
+    document.getElementById('origImage').src = `data:image/png;base64,${data.original_image}`;
+    document.getElementById('resImage').src = `data:image/png;base64,${data.result_image}`;
+    document.getElementById('origHist').src = `data:image/png;base64,${data.original_hist}`;
+    document.getElementById('resHist').src = `data:image/png;base64,${data.result_hist}`;
+    document.getElementById('downloadLink').href = `data:image/png;base64,${data.result_image}`;
+
+    const img = new window.Image();
+    img.onload = () => {
+      document.getElementById('origDims').textContent = `${img.width} × ${img.height}`;
+    };
+    img.src = `data:image/png;base64,${data.original_image}`;
+    document.getElementById('resFactor').textContent = `×${data.brightness_applied.toFixed(2)}`;
+
+    renderStats(data.original_stats, 'origStats');
+    renderStats(data.result_stats, 'resStats', data.original_stats);
+    statsSection.style.display = 'block';
+
+    emptyState.style.display = 'none';
+    results.style.display = 'block';
+
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    submitBtn.classList.remove('loading');
+    submitBtn.disabled = false;
+    if (CAPTCHA_ON) grecaptcha.reset();
+  }
+});
+</script>
+</body>
+</html>
