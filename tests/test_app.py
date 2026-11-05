@@ -8,7 +8,6 @@ import app as app_module
 
 @pytest.fixture
 def client(monkeypatch):
-    # В тестах капчу не проверяем (иначе нужен интернет и ключи)
     monkeypatch.setattr(app_module, 'verify_captcha', lambda token: True)
     app_module.app.config['TESTING'] = True
     return app_module.app.test_client()
