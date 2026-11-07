@@ -18,7 +18,7 @@ app = Flask(__name__)
 # Ограничение размера загружаемого файла: 10 МБ
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 
-# Ключи reCAPTCHA берутся из переменных окружения (в код их не пишем!).
+# Ключи reCAPTCHA берутся из переменных окружения.
 # Если ключи не заданы, капча отключена - так удобно запускать локально.
 RECAPTCHA_SITE_KEY = os.environ.get('RECAPTCHA_SITE_KEY', '')
 RECAPTCHA_SECRET = os.environ.get('RECAPTCHA_SECRET', '')
