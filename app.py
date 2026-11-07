@@ -26,7 +26,7 @@ CAPTCHA_ENABLED = bool(RECAPTCHA_SITE_KEY and RECAPTCHA_SECRET)
 
 
 def verify_captcha(token: str) -> bool:
-    """Проверяет ответ капчи на сервере Google."""
+    """Проверяет ответ капчи на сервере Google.""" #
     if not CAPTCHA_ENABLED:
         return True
     if not token:
@@ -48,9 +48,9 @@ def image_to_base64(img: Image.Image, fmt="PNG") -> str:
     img.save(buf, format=fmt)
     return base64.b64encode(buf.getvalue()).decode('utf-8')
 
-
+#строит гистограмму RGB
 def generate_histogram(img: Image.Image, title: str) -> str:
-    """Гистограмма RGB в виде PNG (base64).
+    """Гистограмма RGB в виде PNG (base64). 
 
     Для каждого канала R, G, B считаем, сколько пикселей имеют
     каждое значение яркости от 0 до 255.
@@ -87,8 +87,8 @@ def generate_histogram(img: Image.Image, title: str) -> str:
     return base64.b64encode(buf.getvalue()).decode('utf-8')
 
 
-def stats(arr) -> dict:
-    """Среднее, минимум, максимум и стандартное отклонение пикселей."""
+def stats(arr) -> dict: 
+    """Среднее, минимум, максимум и стандартное отклонение пикселей.""" #
     return {
         'mean': round(float(arr.mean()), 2),
         'min': int(arr.min()),
@@ -98,7 +98,7 @@ def stats(arr) -> dict:
 
 
 @app.route('/')
-def index():
+def index(): # отдаёт страницу.
     return render_template(
         'index.html',
         site_key=RECAPTCHA_SITE_KEY,
@@ -112,7 +112,7 @@ def too_large(_):
 
 
 @app.route('/process', methods=['POST'])
-def process():
+def process(): #главный обработчик: принимает картинку и яркость, возвращает результат.
     if not verify_captcha(request.form.get('g-recaptcha-response', '')):
         return jsonify({'error': 'Подтвердите, что вы не робот'}), 400
 
